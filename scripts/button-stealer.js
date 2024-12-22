@@ -87,57 +87,94 @@
 
     const stripCSS = (elem, ref, isChild, isSVGChild) => {
         const refCSS = window.getComputedStyle(ref);
-        const refCSSOM = ref.computedStyleMap();
-        const parentCSSOM = ref.parentNode.computedStyleMap();
+        const parentCSS = window.getComputedStyle(ref.parentNode);
+
+        // Remove inline styles
         elem.removeAttribute('style');
-        for (const [prop, val] of refCSSOM) {
-            const property = prop;
-            const value = val[0];
-            if (isChild && inheritable.indexOf(property) !== -1) {
-                if (!(ref.parentNode.tagName.toLowerCase() === 'a' && property === 'color')) {
-                    if (parentCSSOM.get(property).toString() === value.toString()) continue;
+
+        // Loop through the computed styles of the reference element
+        for (let prop of refCSS) {
+            const value = refCSS.getPropertyValue(prop);
+            if (!value) continue;
+
+            // Handle inheritable styles for child elements
+            if (isChild && inheritable.indexOf(prop) !== -1) {
+                if (!(ref.parentNode.tagName.toLowerCase() === 'a' && prop === 'color')) {
+                    if (parentCSS.getPropertyValue(prop) === value) continue;
                 }
-            }  //inheritable
-            if (value.toString() === 'auto') continue;
-            if (refCSS.getPropertyValue('border-top-width') === '0px'
-                && ["border-top-color", "border-top-style"].indexOf(property) !== -1) continue; //border
-            if (refCSS.getPropertyValue('border-bottom-width') === '0px'
-                && ["border-bottom-color", "border-bottom-style"].indexOf(property) !== -1) continue; //border
-            if (refCSS.getPropertyValue('border-left-width') === '0px'
-                && ["border-left-color", "border-left-style"].indexOf(property) !== -1) continue; //border
-            if (refCSS.getPropertyValue('border-right-width') === '0px'
-                && ["border-right-color", "border-right-style"].indexOf(property) !== -1) continue; //border
-            if (refCSS.getPropertyValue('animation-duration') === '0s'
-                && animation.indexOf(property) !== -1) continue; //animation
-            if (refCSS.getPropertyValue('mask-image') === 'none'
-                && mask.indexOf(property) !== -1) continue; //mask
-            if (elem.tagName.toLowerCase() !== 'button') {
-                if (nonButtonDefaults.indexOf(`${property}: ${value}`) !== -1) continue; //defaults
-                if (property === 'appearance') continue;
             }
-            if (defaults.indexOf(`${property}: ${value}`) !== -1) continue; //button defaults
-            if (refCSS.getPropertyValue('border-inline-end-width') === '0px'
-                && ['border-inline-end-width', 'border-inline-end-style', 'border-inline-end-color'].indexOf(property) !== -1) continue; //border-inline-end
-            if (refCSS.getPropertyValue('border-inline-start-width') === '0px'
-                && ['border-inline-start-width', 'border-inline-start-style', 'border-inline-start-color'].indexOf(property) !== -1) continue; //border-inline-end
-            if (refCSS.getPropertyValue('border-block-end-width') === '0px'
-                && ['border-block-end-width', 'border-block-end-style', 'border-block-end-color'].indexOf(property) !== -1) continue; //border-block-end
-            if (refCSS.getPropertyValue('border-block-start-width') === '0px'
-                && ['border-block-start-width', 'border-block-start-style', 'border-block-start-color'].indexOf(property) !== -1) continue; //border-block-end
-            if (refCSS.getPropertyValue('column-rule-width') === '0px'
-                && ['column-rule-style', 'column-rule-color', 'contain-intrinsic-size', 'column-rule-width'].indexOf(property) !== -1) continue; //column-rule
-            if (refCSS.getPropertyValue('border-image-source') === 'none'
-                && ['border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset', 'border-image-repeat'].indexOf(property) !== -1) continue; //column-rule
-            if (refCSS.getPropertyValue('outline-width') === '0px'
-                && ['outline-color', 'outline-style', 'outline-width', 'outline-offset'].indexOf(property) !== -1) continue; //outline
-            if (refCSS.getPropertyValue('transform') === 'none'
-                && ['transform', 'transform-origin', 'transform-style'].indexOf(property) !== -1) continue; //transform
-            if (!isChild && property === 'position') continue;
-            if (property === 'd') continue;
-            if (skip.indexOf(property) !== -1) continue; //skip
-            if (property.indexOf('--')=== 0) continue; //skip vars
-            elem.style.setProperty(property, value);
-        };
+
+            // Skip auto values
+            if (value === 'auto') continue;
+
+            // Handle borders
+            if (refCSS.getPropertyValue('border-top-width') === '0px' &&
+                ["border-top-color", "border-top-style"].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-bottom-width') === '0px' &&
+                ["border-bottom-color", "border-bottom-style"].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-left-width') === '0px' &&
+                ["border-left-color", "border-left-style"].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-right-width') === '0px' &&
+                ["border-right-color", "border-right-style"].includes(prop)) continue;
+
+            // Handle animation properties
+            if (refCSS.getPropertyValue('animation-duration') === '0s' &&
+                animation.includes(prop)) continue;
+
+            // Handle mask properties
+            if (refCSS.getPropertyValue('mask-image') === 'none' &&
+                mask.includes(prop)) continue;
+
+            // Skip button-specific defaults
+            if (elem.tagName.toLowerCase() !== 'button') {
+                if (nonButtonDefaults.includes(`${prop}: ${value}`)) continue;
+                if (prop === 'appearance') continue;
+            }
+
+            // Skip default button styles
+            if (defaults.includes(`${prop}: ${value}`)) continue;
+
+            // Handle border-inline and border-block styles
+            if (refCSS.getPropertyValue('border-inline-end-width') === '0px' &&
+                ['border-inline-end-width', 'border-inline-end-style', 'border-inline-end-color'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-inline-start-width') === '0px' &&
+                ['border-inline-start-width', 'border-inline-start-style', 'border-inline-start-color'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-block-end-width') === '0px' &&
+                ['border-block-end-width', 'border-block-end-style', 'border-block-end-color'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-block-start-width') === '0px' &&
+                ['border-block-start-width', 'border-block-start-style', 'border-block-start-color'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('column-rule-width') === '0px' &&
+                ['column-rule-style', 'column-rule-color', 'contain-intrinsic-size', 'column-rule-width'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('border-image-source') === 'none' &&
+                ['border-image-source', 'border-image-slice', 'border-image-width', 'border-image-outset', 'border-image-repeat'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('outline-width') === '0px' &&
+                ['outline-color', 'outline-style', 'outline-width', 'outline-offset'].includes(prop)) continue;
+
+            if (refCSS.getPropertyValue('transform') === 'none' &&
+                ['transform', 'transform-origin', 'transform-style'].includes(prop)) continue;
+
+            // Skip position property for non-children
+            if (!isChild && prop === 'position') continue;
+
+            // Skip specific properties
+            if (prop === 'd') continue;
+            if (skip.includes(prop)) continue; // skip properties in the skip array
+            if (prop.startsWith('--')) continue; // skip CSS variables
+
+            // Apply the computed property value to the element
+            elem.style.setProperty(prop, value);
+        }
+
+        // Reset margin and positioning styles if not a child
         if (!isChild) {
             elem.style.setProperty('margin-block', '');
             elem.style.setProperty('margin-start', '');
@@ -158,13 +195,17 @@
             if (elem.tagName.toLowerCase() === 'button') {
                 elem.style.setProperty('position', 'relative');
             }
-        }    
+        }
+
+        // Reset border radius styles
         if (elem.style.borderRadius !== '') {
             elem.style.setProperty('border-end-end-radius', '');
             elem.style.setProperty('border-end-start-radius', '');
             elem.style.setProperty('border-start-end-radius', '');
             elem.style.setProperty('border-start-start-radius', '');
         }
+
+        // Reset margin and padding styles for inline and block properties
         if (elem.style.marginInline !== '') {
             elem.style.setProperty('margin-left', '');
             elem.style.setProperty('margin-right', '');
@@ -181,54 +222,57 @@
             elem.style.setProperty('padding-bottom', '');
             elem.style.setProperty('padding-top', '');
         }
+
+        // Reset mask properties
         elem.style.setProperty('-webkit-mask-box-image-source', '');
         elem.style.setProperty('-webkit-mask-box-image-slice', '');
         elem.style.setProperty('-webkit-mask-box-image-width', '');
         elem.style.setProperty('-webkit-mask-box-image-outset', '');
         elem.style.setProperty('-webkit-mask-box-image-repeat', '');
+
+        // Recursively apply to children
         Array.from(elem.children).forEach((child, i) => {
             stripCSS(child, ref.children[i], true, elem.tagName.toLowerCase() === 'svg' || isSVGChild);
         });
+
+        // Reset font-family if it's not 'sans-serif'
         if (!isChild) {
-            fFaces = elem.style.getPropertyValue('font-family').split(',');
-            lastFF = fFaces[fFaces.length-1].trim();
+            const fFaces = elem.style.getPropertyValue('font-family').split(',');
+            const lastFF = fFaces[fFaces.length - 1].trim();
             if (lastFF !== 'sans-serif') {
                 fFaces.push('system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Open Sans', 'Helvetica Neue', 'sans-serif');
                 elem.style.setProperty('font-family', fFaces.join(', '));
             }
-            // if (elem.style.backgroundColor === 'rgb(255, 255, 255)') {
-                // if (elem.style.)
-                // }
         }
-        if (elem.tagName.toLowerCase() === 'button') {
-            if (elem.style.backgroundColor === '') {
-                elem.style.backgroundColor = 'transparent';
-            }
+
+        // Handle button background color
+        if (elem.tagName.toLowerCase() === 'button' && elem.style.backgroundColor === '') {
+            elem.style.backgroundColor = 'transparent';
         }
+
+        // Remove specific attributes
         const names = elem.getAttributeNames();
-        for (let key in names) {
-            const attr = names[key];
-            if (['id', 'class', 'target', 'alt'].indexOf(attr) !== -1
-                || attr.indexOf('data-') === 0
-                || attr.indexOf('aria-') === 0) {
+        names.forEach(attr => {
+            if (['id', 'class', 'target', 'alt'].includes(attr) ||
+                attr.startsWith('data-') || attr.startsWith('aria-')) {
                 elem.removeAttribute(attr);
             }
-        }
-        elem.removeAttribute('id');
-        elem.removeAttribute('target');
-        elem.removeAttribute('alt');
+        });
+
+        // Ensure correct 'src' URL for elements with 'src' attribute
         if (elem.hasAttribute('src')) {
             const rgExp = new RegExp("^(?:[a-z]+:)?//", "i");
-            if (!rgExp.test(elem.getAttribute('src'))) {
-                if (elem.getAttribute('src').charAt(0) === '/') {
-                    elem.setAttribute('src', `${window.location.origin}${elem.getAttribute('src')}`);
+            const src = elem.getAttribute('src');
+            if (!rgExp.test(src)) {
+                if (src.charAt(0) === '/') {
+                    elem.setAttribute('src', `${window.location.origin}${src}`);
                 }
-                if (elem.getAttribute('src').substr(0, 2) === './') {
-                    elem.setAttribute('src', `${window.location.origin}${window.location.pathname}${elem.getAttribute('src').substr(1)}`);
+                if (src.startsWith('./')) {
+                    elem.setAttribute('src', `${window.location.origin}${window.location.pathname}${src.substr(1)}`);
                 }
             }
         }
-    }
+    };
 
     const isElementInViewport = (el) => {
         let top = el.offsetTop;
@@ -242,11 +286,11 @@
         }
         return (
             top >= 0 &&
-            left >= 0 &&
-            (top + height) <= (document.documentElement.clientHeight) &&
-            (left + width) <= (document.documentElement.clientWidth)
+                left >= 0 &&
+                (top + height) <= (document.documentElement.clientHeight) &&
+                (left + width) <= (document.documentElement.clientWidth)
         );
-    }
+    };
 
     const DEBUG = false;
 
@@ -254,10 +298,10 @@
         const possibleButtons = [
             Array.from(document.getElementsByTagName('a')),
             Array.from(document.getElementsByTagName('button'))
-        ]
+        ];
         if (!DEBUG) {
-            possibleButtons[0].sort(()=> {return Math.random() > .5 ? 1 : -1;})
-            possibleButtons[1].sort(()=> {return Math.random() > .5 ? 1 : -1;})
+            possibleButtons[0].sort(() => Math.random() > 0.5 ? 1 : -1);
+            possibleButtons[1].sort(() => Math.random() > 0.5 ? 1 : -1);
         }
         for (let j = 0; j < possibleButtons.length; j++) {
             const buttons = possibleButtons[j];
@@ -269,23 +313,17 @@
                 const elemCSS = window.getComputedStyle(button);
                 if (elemCSS.getPropertyValue('transform') === 'matrix(0, 0, 0, 0, 0, 0)') continue;
                 if (elemCSS.getPropertyValue('opacity') === '0') continue;
-                if (i < 10) if (!isElementInViewport(button)) continue;
-                if (button.innerText === undefined) continue;
-                if (button.innerText.toLowerCase().split(' ').indexOf('skip') !== -1) continue;
-                if (button.innerText.toLowerCase().split(' ').indexOf('jump') !== -1) continue;
-                if (button.innerText.split(' ').join('').length < 2) continue;
-                if (button.innerText.split(' ').join('').length > 32) continue;
-                if (button.innerText.indexOf('\n') !== -1) continue;
-                if (button.innerText.indexOf('\t') !== -1) continue;
+                if (i < 10 && !isElementInViewport(button)) continue;
+                if (!button.innerText) continue;
+                if (['skip', 'jump'].some(word => button.innerText.toLowerCase().includes(word))) continue;
+                if (button.innerText.replace(/\s/g, '').length < 2 || button.innerText.replace(/\s/g, '').length > 32) continue;
+                if (/\n|\t/.test(button.innerText)) continue;
                 if (button.innerText.trim().toLowerCase() === 'ad') continue;
+
                 const width = button.offsetWidth;
                 const height = button.offsetHeight;
-                if (width < 10) continue;
-                if (height < 25) continue;
-                if (width > 600) continue;
-                if (height > 200) continue;
-                if (height / width > 1.2) continue;
-                if (width / height > 8) continue;
+                if (width < 10 || height < 25 || width > 600 || height > 200) continue;
+                if (height / width > 1.2 || width / height > 8) continue;
                 if (elemCSS.getPropertyValue('background-color') === 'rgba(0, 0, 0, 0)') {
                     if (button.children.length > 0) {
                         const elemChildCSS = window.getComputedStyle(button.children[0]);
@@ -296,6 +334,7 @@
                         continue;
                     }
                 }
+
                 const cloneButton = button.cloneNode(true);
                 cloneButton.style.margin = '0';
                 stripCSS(cloneButton, button);
@@ -307,95 +346,85 @@
                 }
                 return {
                     code: cloneButton.outerHTML
-                        .replaceAll('rgb(255, 255, 255)', '#FFF')
-                        .replaceAll('rgb(0, 0, 0)', '#000')
-                        .replaceAll('rgba(0, 0, 0, 0)', 'transparent'),
+                    .replaceAll('rgb(255, 255, 255)', '#FFF')
+                    .replaceAll('rgb(0, 0, 0)', '#000')
+                    .replaceAll('rgba(0, 0, 0, 0)', 'transparent'),
                     text: button.innerText.trim()
-                }
+                };
             }
         }
-        return {
-            code: undefined,
-            text: undefined
-        }
-    }
+        return { code: undefined, text: undefined };
+    };
 
     const stealButton = async () => {
-        let { buttons, maximum, ignore } = await chrome.storage.local.get(['buttons', 'maximum', 'ignore']);
-        
-        for (let i = 0; i < ignore.length; i++) {
-            const listed = ignore[i].split('.');
-            const hostname = window.location.hostname.split('.');
-            while (hostname.length < listed.length) {
-                hostname.unshift('*');
-            };
-            let match = true;
-            for (let j = hostname.length - 1; j > -1; j--) {
-                if (hostname[j] !== listed[j]) {
-                    if (listed[j] === '*') continue;
-                    match = false;
-                }
+        var { buttons, maximum, ignore } = await browser.storage.local.get(['buttons', 'maximum', 'ignore']);
+        const hostname = window.location.hostname.split('.');
+
+        if (ignore) {
+            for (const rule of ignore) {
+                const listed = rule.split('.');
+                while (hostname.length < listed.length) hostname.unshift('*');
+                if (hostname.every((part, i) => part === listed[i] || listed[i] === '*')) return;
             }
-            if (match) return;
+        } else {
+            ignore = [];
         }
 
-        const localButtons = [];
-        for (let i = 0; i < buttons.length; i++) {
-            const button = buttons[i];
-            const url = new URL(button.source);
-            if (url.origin !== window.location.origin) continue;
-            localButtons.push(button);
-            if (localButtons.length === 1) {
-                const m = Math.floor((new Date() - new Date(button.stolenAt))/1000/60);
-                if (m < 5 && !DEBUG) return; //5 minute moratorium on button stealing from this website
-            }
+        if (!buttons) {
+            buttons = []
         }
+
+        const localButtons = buttons.filter(button => new URL(button.source).origin === window.location.origin);
+        if (localButtons.length > 0) {
+            const timeElapsed = Math.floor((Date.now() - new Date(localButtons[0].stolenAt)) / 1000 / 60);
+            if (timeElapsed < 5 && !DEBUG) return;
+        }
+
         const { code, text } = getCode(localButtons);
         if (!code) return;
-        let id = 0;
-        if (buttons.length > 0) {
-            if (buttons[0].hasOwnProperty('id')) {
-                id = buttons[0].id + 1;
-            }
-        }
-        const button = {
-            id: id,
+
+        const id = buttons && buttons.length > 0 && buttons[0].id !== undefined ? buttons[0].id + 1 : 0;
+        const newButton = {
+            id,
             name: `"${text}" from ${window.location.hostname}`,
-            code: code,
+            code,
             source: window.location.origin + window.location.pathname,
-            text: text,
-            stolenAt: (new Date()).toUTCString(),
+            text,
+            stolenAt: new Date().toUTCString()
         };
-        buttons.unshift(button);
-        while (buttons.length >= maximum) {
-            buttons.pop();
+
+        buttons.unshift(newButton);
+        while (buttons.length >= maximum) buttons.pop();
+
+        var { upload } = await browser.storage.local.get('upload');
+        if (!upload) {
+            upload = [];
         }
-        const { upload } = await chrome.storage.local.get('upload');
-        upload.unshift(button);
-        chrome.storage.local.set({ 'buttons': buttons });
-        chrome.storage.local.set({ 'upload': upload });
-    }
+        upload.unshift(newButton);
 
-    let timeoutId = -1;
+        await browser.storage.local.set({ buttons, upload });
+    };
 
-    navigation.addEventListener('navigatesuccess', () => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(stealButton, 500);
-    })
+    let timeoutId = setTimeout(stealButton, 500);
 
-    timeoutId = setTimeout(stealButton, 500);
+    browser.runtime.onMessage.addListener((message) => {
+        if (message.type === 'navigation-success') {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(stealButton, 500);
+        }
+    });
 
     const sendColorModeToBackground = (isDark) => {
-        chrome.runtime.sendMessage({
+        browser.runtime.sendMessage({
             type: 'color-scheme-changed',
-            isDark: isDark,
+            isDark,
             target: 'background'
         });
-    }
+    };
 
     const colorSchemeDispatcher = window.matchMedia('(prefers-color-scheme: dark)');
     sendColorModeToBackground(colorSchemeDispatcher.matches);
-    colorSchemeDispatcher.addEventListener('change', e => {
+    colorSchemeDispatcher.addEventListener('change', (e) => {
         sendColorModeToBackground(e.matches);
     });
 })();

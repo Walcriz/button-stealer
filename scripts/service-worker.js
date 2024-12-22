@@ -10,10 +10,10 @@ const UPLOAD = 'upload';
 const OFFSCREEN_DOCUMENT_PATH = '/offscreen/offscreen.html';
 let isDark = false;
 
-chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+browser.runtime.onInstalled.addListener(async ({ reason }) => {
     switch (reason) {
         case 'install':
-            chrome.storage.local.set({
+            await browser.storage.local.set({
                 buttons: [],
                 upload: [],
                 ignore: [],
@@ -27,15 +27,15 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
             });
             break;
         case 'update':
-            const { buttons, upload, contentful } = await chrome.storage.local.get([BUTTONS, UPLOAD, CONTENTFUL]);
+            const { buttons, upload, contentful } = await browser.storage.local.get([BUTTONS, UPLOAD, CONTENTFUL]);
             if (buttons.length === 0) break;
             let counter = buttons.length - 1;
-            buttons.map(button => { button.id = counter--; button.hidden = false;} );
-            chrome.storage.local.set({ buttons: buttons });
-            if (!upload) chrome.storage.local.set({ 'upload': [] });
+            buttons.forEach(button => { button.id = counter--; button.hidden = false; });
+            await browser.storage.local.set({ buttons: buttons });
+            if (!upload) await browser.storage.local.set({ 'upload': [] });
             if (!contentful.contentDeliveryApiKey) {
                 contentful.contentDeliveryApiKey = '';
-                chrome.storage.local.set({ 'contentful': contentful });
+                await browser.storage.local.set({ 'contentful': contentful });
             }
             break;
         default:
@@ -43,18 +43,22 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
     }
 });
 
-chrome.storage.onChanged.addListener(async (obj) => {
+browser.webNavigation.onCompleted.addListener((details) => {
+    if (details.frameId === 0) {
+        browser.tabs.sendMessage(details.tabId, { type: 'navigation-success' });
+    }
+}, { url: [{ urlMatches: '.*' }] });
+
+browser.storage.onChanged.addListener(async (changes) => {
     switch (true) {
-        case obj.hasOwnProperty(MAXIMUM):
-            const { buttons } = await chrome.storage.local.get(BUTTONS);
-            while (buttons.length >= obj.maximum.newValue) buttons.pop();
-            chrome.storage.local.set({ 'buttons': buttons });
+        case changes.hasOwnProperty(MAXIMUM):
+            const { buttons } = await browser.storage.local.get(BUTTONS);
+            while (buttons.length >= changes.maximum.newValue) buttons.pop();
+            await browser.storage.local.set({ 'buttons': buttons });
             break;
-        case obj.hasOwnProperty(UPLOAD):
-            uploadOffscreen();
-            break;
-        case obj.hasOwnProperty(CONTENTFUL):
-            uploadOffscreen();
+        case changes.hasOwnProperty(UPLOAD):
+        case changes.hasOwnProperty(CONTENTFUL):
+            await uploadOffscreen();
             break;
         default:
             break;
@@ -62,13 +66,13 @@ chrome.storage.onChanged.addListener(async (obj) => {
 });
 
 const uploadOffscreen = async () => {
-    const { upload, contentful } = await chrome.storage.local.get([UPLOAD, CONTENTFUL]);
+    const { upload, contentful } = await browser.storage.local.get([UPLOAD, CONTENTFUL]);
     if (!(contentful[CNTFL_MGMT_API_KEY] && contentful[CNTFL_DLVR_API_KEY] && contentful[CNTFL_SPACE_ID] && contentful[CNTFL_TYPE_ID])) {
-        if (upload.length > 0) chrome.storage.local.set({ 'upload': [] });
+        if (upload.length > 0) await browser.storage.local.set({ 'upload': [] });
         return;
     }
     if (upload.length === 0) {
-        chrome.runtime.sendMessage({
+        browser.runtime.sendMessage({
             type: 'full-sync',
             target: 'offscreen',
             contentful: contentful
@@ -76,15 +80,11 @@ const uploadOffscreen = async () => {
         return;
     }
     if (!(await hasDocument())) {
-        await chrome.offscreen.createDocument({
-            url: OFFSCREEN_DOCUMENT_PATH,
-            reasons: [chrome.offscreen.Reason.DOM_PARSER],
-            justification: 'Parse DOM'
-        });
+        await createHiddenTab();
     }
     const button = upload[upload.length - 1];
     const type = button.hasOwnProperty('code') ? 'upload-stolen-button' : 'remove-stolen-button';
-    chrome.runtime.sendMessage({
+    browser.runtime.sendMessage({
         type: type,
         target: 'offscreen',
         button: button,
@@ -92,48 +92,56 @@ const uploadOffscreen = async () => {
     });
 }
 
+const createHiddenTab = async () => {
+    const tab = await browser.tabs.create({
+        url: browser.runtime.getURL(OFFSCREEN_DOCUMENT_PATH),
+        active: false
+    });
+    return tab.id;
+}
+
 const handleMessages = async (message) => {
     if (message.target !== 'background') return;
     switch (message.type) {
         case 'stolen-button-uploaded':
-            const { upload } = await chrome.storage.local.get(UPLOAD);
+            const { upload } = await browser.storage.local.get(UPLOAD);
             upload.pop();
-            chrome.runtime.sendMessage({
+            browser.runtime.sendMessage({
                 type: 'full-refresh',
                 target: 'stolen-buttons',
             });
-            chrome.storage.local.set({ 'upload': upload });
+            await browser.storage.local.set({ 'upload': upload });
             break;
         case 'contentful-syncronized':
-            chrome.storage.local.set({ buttons: JSON.parse(message.value) });
-            closeOffscreenDocument();
+            await browser.storage.local.set({ buttons: JSON.parse(message.value) });
+            await closeHiddenTab();
             break;
         case 'update-maximum':
-            chrome.storage.local.set({ maximum: parseInt(message.value) });
+            await browser.storage.local.set({ maximum: parseInt(message.value) });
             break;
         case 'update-contentful':
-            chrome.storage.local.set({ contentful: JSON.parse(message.value) });
+            await browser.storage.local.set({ contentful: JSON.parse(message.value) });
             break;
         case 'update-ignore':
-            chrome.storage.local.set({ ignore: message.value.split(' ') });
+            await browser.storage.local.set({ ignore: message.value.split(' ') });
             break;
         case 'remove-all':
-            chrome.storage.local.set({ buttons: [], upload: [] })
+            await browser.storage.local.set({ buttons: [], upload: [] });
             break;
         case 'remove-buttons':
-            handleRemoveButtons(JSON.parse(message.value));
+            await handleRemoveButtons(JSON.parse(message.value));
             break;
         case 'color-scheme-changed':
             if (isDark !== message.isDark) {
                 isDark = message.isDark;
-                chrome.action.setIcon({
+                browser.action.setIcon({
                     "path": {
-                        "16": `/images/icon-${isDark? "dark" : "light"}-16.png`,
-                        "32": `/images/icon-${isDark? "dark" : "light"}-32.png`,
-                        "48": `/images/icon-${isDark? "dark" : "light"}-48.png`,
-                        "128": `/images/icon-${isDark? "dark" : "light"}-128.png`
+                        "16": `/images/icon-${isDark ? "dark" : "light"}-16.png`,
+                        "32": `/images/icon-${isDark ? "dark" : "light"}-32.png`,
+                        "48": `/images/icon-${isDark ? "dark" : "light"}-48.png`,
+                        "128": `/images/icon-${isDark ? "dark" : "light"}-128.png`
                     }
-                })
+                });
             }
             break;
         default:
@@ -142,7 +150,7 @@ const handleMessages = async (message) => {
 }
 
 const handleRemoveButtons = async (selected) => {
-    const { buttons, upload } = await chrome.storage.local.get([BUTTONS, UPLOAD]);
+    const { buttons, upload } = await browser.storage.local.get([BUTTONS, UPLOAD]);
     selected.forEach(s => {
         for (let i = 0; i < buttons.length; i++) {
             const button = buttons[i];
@@ -154,26 +162,21 @@ const handleRemoveButtons = async (selected) => {
             }
         }
     });
-    chrome.storage.local.set({ buttons: buttons });
+    await browser.storage.local.set({ buttons: buttons });
     upload.unshift(...selected);
-    chrome.storage.local.set({ upload: upload });
+    await browser.storage.local.set({ upload: upload });
 }
 
-chrome.runtime.onMessage.addListener(handleMessages);
+browser.runtime.onMessage.addListener(handleMessages);
 
-const closeOffscreenDocument = async () => {
-    if (!(await hasDocument())) {
-        return;
+const closeHiddenTab = async () => {
+    const tabs = await browser.tabs.query({ url: browser.runtime.getURL(OFFSCREEN_DOCUMENT_PATH) });
+    for (const tab of tabs) {
+        await browser.tabs.remove(tab.id);
     }
-    await chrome.offscreen.closeDocument();
 }
 
 const hasDocument = async () => {
-    const matchedClients = await clients.matchAll();
-    for (const client of matchedClients) {
-        if (client.url.endsWith(OFFSCREEN_DOCUMENT_PATH)) {
-            return true;
-        }
-    }
-    return false;
+    const tabs = await browser.tabs.query({ url: browser.runtime.getURL(OFFSCREEN_DOCUMENT_PATH) });
+    return tabs.length > 0;
 }
