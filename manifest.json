@@ -31,5 +31,11 @@
         "https://*/*"
       ]
     }
-  ]
+  ],
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "button-stealer@walcriz.net"
+    }
+  }
 }
